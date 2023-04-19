@@ -10,6 +10,7 @@ import (
 	"example.com/function/database"
 	"example.com/function/models"
 	"github.com/gofiber/fiber/v2"
+	uuid "github.com/gofrs/uuid"
 	domain "github.com/red-gold/ts-serverless/micros/circles/dto"
 	service "github.com/red-gold/ts-serverless/micros/circles/services"
 )
@@ -26,25 +27,37 @@ func CreateCircleHandle(c *fiber.Ctx) error {
 		log.Error(errorMessage)
 		return c.Status(http.StatusInternalServerError).JSON(utils.Error("internal/parseModel", "Error happened while parsing model!"))
 	}
+	fmt.Println("body has been parsed")
 	if model.Name == followingCircleName {
 		errorMessage := fmt.Sprintf("Can not use 'Following' as a circle name")
 		log.Error(errorMessage)
 		return c.Status(http.StatusBadRequest).JSON(utils.Error("followingCircleNameIsReserved", errorMessage))
 	}
-	currentUser, ok := c.Locals(types.UserCtxName).(types.UserContext)
-	if !ok {
-		log.Error("[CreateCircleHandle] Can not get current user")
-		return c.Status(http.StatusBadRequest).JSON(utils.Error("invalidCurrentUser",
-			"Can not get current user"))
-	}
+	// currentUser, ok := c.Locals(types.UserCtxName).(types.UserContext)
+	// if !ok {
+	// 	log.Error("[CreateCircleHandle] Can not get current user")
+	// 	return c.Status(http.StatusBadRequest).JSON(utils.Error("invalidCurrentUser",
+	// 		"Can not get current user"))
+	// }
+	fmt.Println("creating current user")
+	currentUser := types.UserContext{
 
+		DisplayName: "Current User",
+		Avatar:      "Current User Avatar",
+	}
+	var uuidErr error
+	currentUser.UserID, uuidErr = uuid.NewV4()
+	if uuidErr != nil {
+		return uuidErr
+	}
+	fmt.Println("creating a new circle")
 	// Create a new circle
 	newCircle := &domain.Circle{
 		OwnerUserId: currentUser.UserID,
 		Name:        model.Name,
 		IsSystem:    false,
 	}
-
+	fmt.Println("creating a new service")
 	// Create service
 	circleService, serviceErr := service.NewCircleService(database.Db)
 	if serviceErr != nil {
