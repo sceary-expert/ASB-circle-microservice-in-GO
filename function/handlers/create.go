@@ -9,10 +9,10 @@ import (
 	"example.com/core/utils"
 	"example.com/function/database"
 	"example.com/function/models"
+	service "example.com/function/services"
 	"github.com/gofiber/fiber/v2"
 	uuid "github.com/gofrs/uuid"
 	domain "github.com/red-gold/ts-serverless/micros/circles/dto"
-	service "github.com/red-gold/ts-serverless/micros/circles/services"
 )
 
 const followingCircleName = "Following"
@@ -21,11 +21,14 @@ const followingCircleName = "Following"
 func CreateCircleHandle(c *fiber.Ctx) error {
 	fmt.Println("inside create circle handle")
 	// Create the model object
-	model := new(models.CreateCircleModel)
-	if err := c.BodyParser(model); err != nil {
-		errorMessage := fmt.Sprintf("Parse CreateCircleModel Error %s", err.Error())
-		log.Error(errorMessage)
-		return c.Status(http.StatusInternalServerError).JSON(utils.Error("internal/parseModel", "Error happened while parsing model!"))
+	// model := new(models.CreateCircleModel)
+	// if err := c.BodyParser(model); err != nil {
+	// 	errorMessage := fmt.Sprintf("Parse CreateCircleModel Error %s", err.Error())
+	// 	log.Error(errorMessage)
+	// 	return c.Status(http.StatusInternalServerError).JSON(utils.Error("internal/parseModel", "Error happened while parsing model!"))
+	// }
+	model := models.CreateCircleModel{
+		Name: "new circle model",
 	}
 	fmt.Println("body has been parsed")
 	if model.Name == followingCircleName {
@@ -50,7 +53,7 @@ func CreateCircleHandle(c *fiber.Ctx) error {
 	if uuidErr != nil {
 		return uuidErr
 	}
-	fmt.Println("creating a new circle")
+	fmt.Println("creating a new circle", currentUser.UserID)
 	// Create a new circle
 	newCircle := &domain.Circle{
 		OwnerUserId: currentUser.UserID,
@@ -82,5 +85,45 @@ func CreateCircleHandle(c *fiber.Ctx) error {
 func CreateFollowingHandle(c *fiber.Ctx) error {
 	fmt.Println("inside create follow handle")
 	// params from /circles/following/:userId
+	// params from /circles/following/:userId
+	userId := c.Params("userId")
+	fmt.Println("user id is : ", userId)
+	if userId == "" {
+		errorMessage := fmt.Sprintf("User Id is required!")
+		log.Error(errorMessage)
+		return c.Status(http.StatusBadRequest).JSON(utils.Error("userIdRequired", errorMessage))
+	}
+
+	userUUID, uuidErr := uuid.FromString(userId)
+	if uuidErr != nil {
+		errorMessage := fmt.Sprintf("UUID Error %s", uuidErr.Error())
+		log.Error(errorMessage)
+		return c.Status(http.StatusBadRequest).JSON(utils.Error("userIdIsNotValid", "User id is not valid!"))
+	}
+
+	// Create a new circle
+	newCircle := &domain.Circle{
+		OwnerUserId: userUUID,
+		Name:        followingCircleName,
+		IsSystem:    true,
+	}
+
+	// Create service
+	circleService, serviceErr := service.NewCircleService(database.Db)
+	if serviceErr != nil {
+		log.Error("NewCircleService %s", serviceErr.Error())
+		return c.Status(http.StatusInternalServerError).JSON(utils.Error("internal/circleService", "Error happened while creating circleService!"))
+	}
+
+	if err := circleService.SaveCircle(newCircle); err != nil {
+		errorMessage := fmt.Sprintf("Save Circle Error %s", err.Error())
+		log.Error(errorMessage)
+		return c.Status(http.StatusInternalServerError).JSON(utils.Error("internal/saveCircle", "Error happened while saving circle!"))
+	}
+
+	return c.JSON(fiber.Map{
+		"objectId": newCircle.ObjectId.String(),
+	})
+
 	return nil
 }
